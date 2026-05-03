@@ -1,0 +1,169 @@
+---
+title: "Casual Final"
+output: pdf_document
+author: "Heather Ganfield"
+date: "March 6, 2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE,
+  message = FALSE)
+```
+
+```{r}
+library(AER)
+library(dplyr)
+library(ggplot2)
+library(fixest)
+
+data("Fatalities")
+df <- Fatalities |>
+  mutate(
+    year = as.integer(as.character(year)),
+    state = as.character(state),
+    # Outcome: fatalities per 100,000 people age 18-20
+    y = 100000 * fatal1820 / pop1820,
+    logy = log(y),
+    # Treatment indicator: MLDA == 21
+    D = as.integer(drinkage == 21)
+  ) |>
+  group_by(state) |>
+  mutate(
+    # First-treated year (cohort); Inf for never-treated     states
+    G = if (any(D == 1)) min(year[D == 1]) else Inf,
+    ever = as.integer(is.finite(G)),
+    # For convenience: define event_time for     never-treated states as 0
+    event_time = ifelse(is.finite(G), year - G, 0L)
+  ) |>
+  ungroup()
+
+```
+
+# Problem 1
+
+## 1.1
+
+```{r}
+df %>%
+    group_by(G) %>%
+    summarize(n = length(unique(state)))
+```
+
+In the first year of the data, half of the states have already been treated. The rate of new treated states is low at first, then increases, and then starts to decrease in the final year. For the time period 1982-1988, only one of the 48 states was never treated (labeled as "Inf"). This means only one state never had the MLDA set at age 21. 
+
+## 1.2
+
+```{r}
+library(panelView)
+panelview(data = df, D = "D",
+          index = c("state", "year"),
+          by.timing = TRUE,
+          axis.adjust = TRUE,
+          axis.lab = "time")
+```
+
+
+The visualization demonstrates how proportion treated over time increases. In the first time period, almost half of the states are already under treatment, where the MLDA is set at 21 years. This means there is no pre-treatment data for these states. In years 1983 and 1984, only one state changes the law each year. Then, there are larger numbers of states that change the MLDA each year. In the final year, only one state remains untreated. Overall, we have more observations under treatment than under control, which is largely because half of the states are always under treatment in the data. 
+
+
+## 1.3
+
+```{r}
+plot_df <- df %>%
+  group_by(year, D) %>%       
+  summarise(mean_outcome = mean(y, na.rm = TRUE), .groups = "drop")
+
+ggplot(plot_df, aes(x = year, y = mean_outcome, color = factor(D))) +
+  geom_line(size = 1.2) +
+  scale_color_manual(
+    values = c("0" = "red", "1" = "blue"),
+    labels = c("Untreated", "Treated")
+  ) +labs(
+    x = "Year",
+    y = "Average Outcome",
+    color = "Group"
+  ) +
+  theme_minimal()
+```
+
+
+# Problem 2
+
+## 2.1
+
+```{r}
+fe <- feols(logy ~ D | state + year, data = df, cluster = ~state)
+fe
+```
+
+```{r}
+TWFE_tau <- coef(fe)["D"]
+cat("ATE: ", TWFE_tau, "\n")
+```
+
+```{r}
+ci <- confint(fe)
+ci
+```
+
+A MLDA of 21 years decreases the number of car accident fatalities by 5% on average, with a 95% confidence interval ranging from decreasing by 13% to increasing by 3%. 
+
+
+## 2.2
+
+```{r}
+feols(logy ~ D | state + year, data = df)
+```
+
+The i.i.d SE is smaller than the clustered SE. The clustered by state SE is more credible. The rule of thumb is to cluster at the level of treatment assignment. This data is looking at state policy on MLDA which means that treatment is assigned at the level of the state. Clustering is necessary because there may be correlation between the error terms for the same state at different time periods. This correlation in error could reflect an unobserved effect specific to the state, such as another state law or custom. Clustering at the state level allows for similarity within the cluster while maintaining independence between clusters. The standard error under i.i.d is small because it does not account for the correlations between different time observations for a given state, and so is not credible. The fixed effects adjustment on its own only addresses bias in the coefficients based on within-state similarities not the error terms. 
+
+
+## 2.3
+
+```{r}
+feols(logy ~ D + income + emppop + beertax + miles | state + year, data = df, cluster = ~state)
+```
+
+The coefficients on income and miles are low, which indicated that the average miles per driver and per capita income do not have a strong effect on car accident fatalities. The employment/population ratio has a slight positive effect on car accident fatalities, but it is less than treatment. The implementation of a MLDA of 21 years does cause a decrease in the number of car accident fatalities. However, there is a much stronger effect on the number of fatalities from the beer tax. 
+
+# Problem 3
+
+```{r}
+# Drop states with G = 1982 since they have no pre-treatment period in the sample
+df_es <- df |> filter(G > min(year) | !is.finite(G))
+```
+
+
+## 3.1 
+
+```{r}
+es_naive <- feols(logy ~ i(event_time, ever, ref = -1) | state + year,
+               data = df_es, cluster = ~state)
+iplot(es_naive)
+```
+
+Before treatment, the plot shows that there is a positive effect on the number of fatalities, though this decreases as we approach the baseline. Assuming parallel trends, we would expect that the pre-trends have effects near zero. Most of the estimates have confidence intervals that cross zero, which demonstrates a possibility of parallel trends, but it is plausible that treatment and control groups are diverging before treatment. 
+
+Post-treatment, there is an initial decrease in the number of fatalities. At event time four there is the largest effect, though it is in the positive direction. However, for all of these estimates, there is a significant margin of error. For each point, the margin of error crosses the zero axis so it is possible for there to be a both positive or negative effect on the outcome. Interestingly, the effect goes up at time 4 and then goes down at time 5, which implies that the fatalities rate increases over time post-treatment. 
+
+
+## 3.2 
+
+```{r}
+es_sa <- feols(logy ~ sunab(G, year) | state + year,
+               data = df_es, cluster = ~state)
+
+iplot(es_sa)
+```
+
+
+On this plot, the pre-trends are more consistent and stay near the zero axis, supporting the parallel trends assumption. Similar to the other plot, there is an initial decrease in the effect on y after treatment. Unlike the previous plot, this decrease is maintained through event time three. However, there is a sharp increase to a positive effect in event time four. The entire error bar is within the positive values. This demonstrates that over time, the change in MLDA eventually has an increase in the number of car accident fatalities. 
+
+
+## 3.3
+
+When we have panel data under staggered adoption with heterogeneous effects, this means that states receive treatment at different time periods and receive different effects of that treatment. Naive TWFE assumes homogeneous effects and will compare late adopters to early adopters and consider their treatment to be the same. However, with heterogeneous effects, these two groups cannot be compared because the treatment effects may have changed over time. For example, when more states have adopted the new law, people may be expecting the law change and be more prepared to change their actions accordingly (to break it or to comply). Since naive TWFE considers treatment to be the same between late and early adopters, it is hard to interpret the estimates of the difference between control and treatment since the treatment group is not homogeneous. Sun Abraham takes account of heterogeneous effects and so can more accurately capture the differences between treatment and control groups. 
+
+# AI Disclosure
+
+I used ChatGPT to aid with debugging, fixest documentation, and the 1.3 line plot. 

@@ -1,0 +1,663 @@
+---
+title: "PLSC 30600 --- Take-Home Midterm: LaLonde (1986) and Nonexperimental ATT"
+output:
+  pdf_document:
+    number_sections: false
+header-includes:
+  - "\\usepackage[margin=1in]{geometry}"
+  - "\\usepackage{amsmath, amssymb, amsthm}"
+  - "\\usepackage{bm}"
+  - "\\usepackage{booktabs}"
+  - "\\usepackage{enumitem}"
+  - "\\usepackage{hyperref}"
+  - "\\usepackage{tikz}"
+  - "\\usetikzlibrary{positioning}"
+  - "\\setlist[itemize]{noitemsep, topsep=2pt}"
+  - "\\setlist[enumerate]{itemsep=4pt, topsep=6pt}"
+  - "\\newcommand{\\E}{\\textrm{E}}"
+  - "\\newcommand{\\Y}{\\bm{Y}}"
+  - "\\newcommand{\\D}{\\bm{D}}"
+  - "\\newcommand{\\one}{\\bm{\\mathbf{1}}}"
+  - "\\newcommand{\\X}{\\bm{X}}"
+  - "\\newcommand{\\W}{\\bm{W}}"
+---
+
+\textbf{Due:} Friday, February 13 (11:59pm)
+
+\vspace{0.75em}
+\hrule
+\vspace{0.75em}
+
+
+NB: This code sample is a subsection of a take home midterm completed for my graduate level class at the University of Chicago, PLSC 30600: Causal Inference. 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+# Overview
+
+In the last homework you used the experimental NSW data to estimate the
+ATE. In this take-home midterm you will use nonexperimental data to
+estimate the ATT. You will work with the Dehejia–Wahba (1999) subset of the 
+experimental sample, as well as observational control data, and will then 
+evaluate estimators.
+
+Reference tutorial: https://yiqingxu.org/tutorials/lalonde/
+
+We follow many of the procedures used in the tutorial, but they have some built
+in functions and use some machine learning estimators that we haven't covered; we 
+are going to put together the pieces using different estimation techniques. 
+You are allowed to use the tutorial for reference, for understanding the data 
+and context, but their code will not carry over directly. 
+
+# Data and setup
+
+In our analysis, as in the tutorial, will use three samples built around the
+LaLonde–Dehejia–Wahba (LDW) data: (1) LDW-Experimental, which is the
+experimental subset of the original experimental data; (2) LDW-CPS1, which pairs 
+the LDW-Experimental treated units with observational controls from the Current 
+Population Survey (CPS-SSA-1) ; and (3) LDW-PSID1, which pairs the same LDW 
+treated units with observational controls from the Panel Study of Income 
+Dynamics (PSID-1).
+
+`ldw_cps` and `ldw_psid` already *include* the LDW treated observations. 
+The experimental control group is stored separately as
+`ldw_co`.
+
+```{r}
+library(Matching)
+library(estimatr)
+
+# Load prepared objects (nsw, ldw, ldw_cps, ldw_psid, ldw_co, etc.)
+lalonde_url <- "https://raw.githubusercontent.com/xuyiqing/lalonde/master/data/lalonde.RData"
+load(url(lalonde_url))
+
+# define variables
+Y <- "re78"
+treat <- "treat"
+covar <- c("age", "education", "black", "hispanic", "married", "nodegree",
+           "re74", "re75", "u74", "u75")
+```
+
+
+# Problems
+
+## Part 1: Constructing the Comparison Samples
+
+### 1.1 Re-estimate propensity scores (LDW-Experimental, CPS1, PSID1)
+
+Estimate the treatment propensity score for each of these datasets:
+LDW-Experimental (`ldw`), LDW-CPS1 (`ldw_cps`), and LDW-PSID1
+(`ldw_psid`). Use a logit model with `glm(..., family = binomial())` and
+the covariate set `covar`.
+
+Create and use the following object names:
+
+- `exp_df` for LDW‑Experimental
+- `cps_untrim` for LDW‑CPS1 (untrimmed)
+- `psid_untrim` for LDW‑PSID1 (untrimmed)
+
+```{r}
+exp_df <- ldw
+cps_untrim <- ldw_cps
+psid_untrim <- ldw_psid
+```
+
+Deliverable: redefined datasets, no results reporting needed for this problem. 
+
+## Answer
+
+```{r}
+exp_df <- ldw
+cps_untrim <- ldw_cps
+psid_untrim <- ldw_psid
+```
+
+```{r warning=FALSE}
+#Estimate propensity scores for each dataset
+glm_exp_df <- glm(treat ~ age + education + black + hispanic + married + 
+                    nodegree + re74 + re75 + u74 + u75, data = exp_df, 
+                  family = binomial(link = "logit"))
+exp_df$p_hat <- predict(glm_exp_df, type = "response")
+
+glm_cps_untrim <- glm(treat ~ age + education + black + hispanic + married + 
+                        nodegree + re74 + re75 + u74 + u75, data = cps_untrim, 
+                      family = binomial(link = "logit"))
+cps_untrim$p_hat <- predict(glm_cps_untrim, type = "response")
+
+glm_psid_untrim <- glm(treat ~ age + education + black + hispanic + married + 
+                         nodegree + re74 + re75 + u74 + u75, data = psid_untrim,
+                       family = binomial(link = "logit"))
+psid_untrim$p_hat <- predict(glm_psid_untrim, type = "response")
+```
+
+### 1.2 Propensity score overlap plots
+
+Using `ggplot2` and `geom_histogram`, plot propensity score overlap for
+each merged dataset and for the true experimental population. Use
+different fill colors for treated vs control and label each plot clearly
+(LDW-CPS1 vs LDW-PSID1 vs LDW-Experimental).
+Use `aes(y = after_stat(density))` so the y-axis is density rather
+than counts.
+Also report the number of treated and control observations for each
+dataset you plot. 
+
+Deliverable: three overlap plots each accompanied by treated/control counts. 
+
+## Answer
+
+```{r warning=FALSE}
+library(ggplot2)
+
+# Plot distribution of propensity scores
+
+ggplot(exp_df, aes(x = p_hat, fill = factor(treat))) +
+  geom_histogram(aes(y = after_stat(density)),
+                 position = "identity", alpha = 0.5, bins = 30) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(x = "Propensity score", y = "Density", fill = "Group", title = "EXP_DF") +
+  theme_minimal()
+
+ggplot(cps_untrim, aes(x = p_hat, fill = factor(treat))) +
+  geom_histogram(aes(y = after_stat(density)),
+                 position = "identity", alpha = 0.5, bins = 30) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(x = "Propensity score", y = "Density", title = "CPS_UNTRIM", fill = "Group") +
+  theme_minimal()
+
+ggplot(psid_untrim, aes(x = p_hat, fill = factor(treat))) +
+  geom_histogram(aes(y = after_stat(density)),
+                 position = "identity", alpha = 0.5, bins = 30) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(x = "Propensity score", y = "Density", title = "PSID_UNTRIM", fill = "Group") +
+  theme_minimal()
+
+# Print counts for treatment and control for each dataset
+cat("exp_df treatment: ", sum(exp_df$treat == 1), "\n")
+cat("exp_df control: ", sum(exp_df$treat == 0), "\n")
+cat("cps_untrim treatment: ", sum(cps_untrim$treat == 1), "\n")
+cat("cps_untrim control: ", sum(cps_untrim$treat == 0), "\n")
+cat("psid_untrim treatment: ", sum(psid_untrim$treat == 1), "\n")
+cat("psid_untrim control: ", sum(psid_untrim$treat == 0), "\n")
+```
+
+
+### 1.3 Add experimental controls + re-estimate + trim
+
+For each of the two combined datasets, create a new data set that merges in the 
+experimental controls from `ldw_co` to expand the control group. Then, on these 
+new expanded data sets, estimate each unit’s propensity **of being included in 
+the experiment** using `covar`.
+
+We are going to use this experimental propensity score to implement trimming. 
+On these new data sets, drop units with extreme propensity scores as follows:
+- LDW-CPS1: drop units with propensity score > 0.9
+- LDW-PSID1: drop units with propensity score > 0.8
+
+Create and use these object names:
+
+- `ldw_cps.plus` and `ldw_psid.plus` for the expanded datasets
+- `ldw_cps.plus_trim` and `ldw_psid.plus_trim` after trimming
+- `cps_trim` and `psid_trim` for ATT analysis (samples 1&3, 1&4)
+
+Deliverable: redefined datasets, no results reporting needed for this problem. 
+
+**Note:** Before `rbind`, make sure the two data frames have
+the same columns and create a new indicator (e.g., `experimental`) for
+the experiment status. Then estimate `experimental ~ covar` by logit and
+trim on that fitted probability.
+
+## Answer
+
+```{r warning=FALSE}
+# Create a p_hat column for ldw_co so that all the columns are the same before merging
+ldw_co$p_hat <- NA
+
+# Create experimental indicator for all data sets. 1 = experimental, 0 = non-experimental 
+
+ldw_co$experimental <- 1
+
+# treatment is experimental, control is non-experimental 
+cps_untrim$experimental <- ifelse(cps_untrim$treat == 1, 1, 0)
+psid_untrim$experimental <- ifelse(psid_untrim$treat == 1, 1, 0)
+```
+
+
+```{r warning=FALSE}
+library(dplyr)
+
+# Combine ldw_co and cps_untrim
+ldw_cps.plus <- rbind(cps_untrim, ldw_co)
+
+# Combine ldw_co and psid_untrim 
+ldw_psid.plus <- rbind(psid_untrim, ldw_co)
+
+# use glm (experimental ~ covar) on both combined datasets
+glm_ldw_cps.plus <- glm(experimental ~ age + education + black + hispanic + 
+                          married + nodegree + re74 + re75 + u74 + u75, 
+                        data = ldw_cps.plus, family = binomial(link = "logit"))
+ldw_cps.plus$p_exp <- predict(glm_ldw_cps.plus, type = "response")
+
+glm_ldw_psid.plus <- glm(experimental ~ age + education + black + hispanic +
+                          married + nodegree + re74 + re75 + u74 + u75, 
+                         data = ldw_psid.plus, family = binomial(link = "logit"))
+ldw_psid.plus$p_exp <- predict(glm_ldw_psid.plus, type = "response")
+
+# Use experiment propensity scores to trim 
+
+ldw_cps.plus_trim <- ldw_cps.plus[ldw_cps.plus$p_exp <= 0.9, ]
+ldw_psid.plus_trim <- ldw_psid.plus[ldw_psid.plus$p_exp <= 0.8, ]
+
+# Data sets for ATT analysis
+
+# if experimental and control, drop
+cps_trim <- ldw_cps.plus_trim %>%
+            filter(!(ldw_cps.plus_trim$treat == 0 & ldw_cps.plus_trim$experimental == 1))
+
+psid_trim <- ldw_psid.plus_trim %>%
+            filter(!(ldw_psid.plus_trim$treat == 0 & ldw_psid.plus_trim$experimental == 1))
+```
+
+
+### 1.4 Propensity score matching (1:1)
+
+Using the trimmed datasets from Problem 1.3, perform 1:1 nearest-neighbor
+propensity score matching **without replacement**. Steps:
+
+1) Keep only treated LDW units and nonexperimental controls:
+   - CPS: `sample %in% c(1, 3)`
+   - PSID: `sample %in% c(1, 4)`
+2) Re-estimate the propensity score (logit `glm`) on the filtered sample.
+3) Match treated to controls on the propensity score with
+   `Matching::Match`, using `M = 1`, `replace = FALSE`, `ties = FALSE`,
+   and `estimand = "ATT"`. The key arguments are:
+   - `Y`: outcome (`re78`)
+   - `Tr`: treatment indicator (`treat`)
+   - `X`: the propensity score vector
+4) Extract the matched rows using `index.treated` and `index.control`,
+   then bind those rows to form a matched dataset for later steps.
+
+Create and use:
+- `ldw_cps_matched` and `ldw_psid_matched`
+
+**Note:** `Matching::Match` returns indices. You can recover
+the matched data with something like
+`matched_df <- rbind(df[m$index.treated, ], df[m$index.control, ])`.
+
+
+## Answer
+
+```{r warning=FALSE}
+# Re-estimate treatment propensity scores
+
+glm_cps_trim <- glm(treat ~ age + education + black + hispanic + married + 
+                      nodegree + re74 + re75 + u74 + u75, data = cps_trim, 
+                    family = binomial(link = "logit"))
+cps_trim$p_hat2 <- predict(glm_cps_trim, type = "response")
+
+glm_psid_trim <- glm(treat ~ age + education + black + hispanic + married + 
+                       nodegree + re74 + re75 + u74 + u75, data = psid_trim, 
+                     family = binomial(link = "logit"))
+psid_trim$p_hat2 <- predict(glm_psid_trim, type = "response")
+
+# Match treated to controls
+
+m_cps <- Match(Y = cps_trim$re78, Tr = cps_trim$treat, X = cps_trim$p_hat2, 
+               M = 1, replace = FALSE, ties = FALSE, estimand = "ATT")
+
+m_psid <- Match(Y = psid_trim$re78, Tr = psid_trim$treat, X = psid_trim$p_hat2, 
+                M = 1, replace = FALSE, ties = FALSE, estimand = "ATT")
+
+# Create matched datasets
+
+ldw_cps_matched <- rbind(cps_trim[m_cps$index.treated, ], cps_trim[m_cps$index.control, ])
+
+ldw_psid_matched <- rbind(psid_trim[m_psid$index.treated, ], psid_trim[m_psid$index.control, ])
+
+
+```
+
+### 1.5 Re-assess overlap after matching
+
+Plot propensity score overlap for the matched CPS and PSID datasets.
+Use `ggplot2` and `geom_histogram` with `aes(y = after_stat(density))`.
+Report the number of treated and control observations for each matched
+dataset.
+
+Deliverable: two overlap plots each accompanied by treated/control counts
+
+# Answer
+
+```{r warning=FALSE}
+# Plot new propensity score distributions 
+ggplot(ldw_cps_matched, aes(x = p_hat2, fill = factor(treat))) +
+  geom_histogram(aes(y = after_stat(density)),
+                 position = "identity", alpha = 0.5, bins = 30) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(x = "Propensity score", y = "Density", title = "LDW_CPS_MATCHED", fill = "Group") +
+  theme_minimal()
+
+ggplot(ldw_psid_matched, aes(x = p_hat2, fill = factor(treat))) +
+  geom_histogram(aes(y = after_stat(density)),
+                 position = "identity", alpha = 0.5, bins = 30) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(x = "Propensity score", y = "Density", title = "LDW_PSID_MATCHED", fill = "Group") +
+  theme_minimal()
+
+# Print treatment and control counts for both datasets 
+cat("ldw_cps_matched treatment: ", sum(ldw_cps_matched$treat == 1), "\n")
+cat("ldw_cps_matched control: ", sum(ldw_cps_matched$treat == 0), "\n")
+cat("ldw_psid_matched treatment: ", sum(ldw_psid_matched$treat == 1), "\n")
+cat("ldw_psid_matched control: ", sum(ldw_psid_matched$treat == 0), "\n")
+```
+
+### 1.6 Covariate balance (by hand)
+
+Check covariate balance. For each covariate
+in `covar`, compute standardized mean differences (treated - control)
+pre‑matching and post‑matching. Use the original LDW‑CPS1 / LDW‑PSID1
+samples for pre‑matching and the matched datasets for post‑matching.
+
+For each dataset (CPS and PSID), make one plot where:
+- x‑axis = standardized mean difference (SMD)
+- y‑axis = covariate name
+- show matched vs unmatched SMDs in different colors on the same plot
+
+Comment on what you see.
+
+Deliverable: two balance plots + a brief interpretation.
+
+**Note:** A simple SMD for covariate `x` is
+`(mean(x_t) - mean(x_c)) / sd(x_all)`, where `x_t` and `x_c` are treated
+and control values and `x_all` is the pooled sample. You can wrap this in
+a small function and apply it across `covar`.
+
+## Answer
+
+```{r warning=FALSE}
+# Function that calculates standardized mean difference between treated 
+#and control groups for one covariate of the data set
+smd <- function(x, df) {
+  x_t <- df[[x]][df$treat == 1]
+  x_c <- df[[x]][df$treat == 0]
+  x_all <- df[[x]]
+  return((mean(x_t) - mean(x_c)) / sd(x_all))
+}
+
+# Create vectors with SMD values for each dataset, matched and unmatched
+smd_cps <- numeric(0)
+smd_psid <- numeric(0)
+smd_cps_matched <- numeric(0)
+smd_psid_matched <- numeric(0)
+
+for (x in covar) {
+    smd_cps <- c(smd_cps, smd(x, cps_untrim))
+}
+
+for (x in covar) {
+    smd_psid <- c(smd_psid, smd(x, psid_untrim))
+}
+
+for (x in covar) {
+    smd_cps_matched <- c(smd_cps_matched, smd(x, ldw_cps_matched))
+}
+
+for (x in covar) {
+    smd_psid_matched <- c(smd_psid_matched, smd(x, ldw_psid_matched))
+}
+
+# Create dataframes, one for each dataset, that contain SMD values for 
+#both matched and unmatched versions
+bal_cps <- data.frame (
+  covariate = rep(covar, 2),
+  SMD = c(smd_cps, smd_cps_matched),
+  sample = rep(c("Unmatched", "Matched"), each = length(covar))
+)
+bal_psid <- data.frame (
+  covariate = rep(covar, 2),
+  SMD = c(smd_psid, smd_psid_matched),
+  sample = rep(c("Unmatched", "Matched"), each = length(covar))
+)
+
+```
+
+```{r warning=FALSE}
+# Create Balance Plots
+
+ggplot(bal_cps,
+       aes(x = SMD,
+           y = covariate,
+           color = sample)) +
+  geom_point(size = 3) +
+  geom_vline(xintercept = c(-0.1, 0.1),
+             linetype = "dashed",
+             color = "gray50") +
+  labs(x = "Standardized Mean Difference",
+       y = "Covariate",
+       color = "Sample", title = "CPS") +
+  theme_minimal()
+
+ggplot(bal_psid,
+       aes(x = SMD,
+           y = covariate,
+           color = sample)) +
+  geom_point(size = 3) +
+  geom_vline(xintercept = c(-0.1, 0.1),
+             linetype = "dashed",
+             color = "gray50") +
+  labs(x = "Standardized Mean Difference",
+       y = "Covariate",
+       color = "Sample", title = "PSID") +
+  theme_minimal()
+```
+
+
+### Interpretation
+
+The matched data sets have small standardized mean differences for all covariates, while the unmatched data sets have larger absolute differences. This demonstrates that matching by propensity score has made the covariate profiles for treatment and control similar, hence the small mean difference between them. The success of the matching is also demonstrated in how the matched values are mostly within the threshold around zero. Interestingly, both data sets without matching have small mean differences between treatment and control for the hispanic covariate. 
+
+## Part 2: ATT Estimation
+
+Estimate the ATT using the five samples you created in Part 1:
+`exp_df`, `cps_untrim`, `psid_untrim`, `cps_trim`, and `psid_trim`.
+
+For each sample, compute the following estimators:
+
+- difference in means, 
+- Lin (`estimatr::lm_lin`), 
+- IPW, 
+- stabilized IPW, and
+- doubly robust. 
+
+Use bootstrap confidence intervals for all estimates and
+report a single table with estimates and 95% CIs. 
+Stratify bootstraps so that each bootstrap sample has the same number of treated 
+and control units as the original sample 
+(i.e., resample treated and control units separately).
+Use at least 500 bootstrap replications.
+Re-estimate the propensity scores on each bootstrap. 
+
+Deliverable: one table with estimates + bootstrap 95% CIs.
+Optional: plot estimates. 
+
+# Answer
+
+```{r warning=FALSE}
+# Data cleaning
+# Match column names for all data sets
+
+cps_trim <- cps_trim %>% rename (
+  p_old = p_hat,
+  p_hat = p_hat2
+)
+
+psid_trim <- psid_trim %>% rename (
+  p_old = p_hat,
+  p_hat = p_hat2
+)
+
+ldw_cps_matched <- ldw_cps_matched %>% rename (
+  p_old = p_hat,
+  p_hat = p_hat2
+)
+
+ldw_psid_matched <- ldw_psid_matched %>% rename (
+  p_old = p_hat,
+  p_hat = p_hat2
+)
+```
+
+
+```{r warning=FALSE}
+# Function to calculate all estimates, complete bootstraps, and calculate 
+#confidence intervals for one data set. Returns a data frame with calculated values. 
+
+set.seed(30600)
+
+estimate <- function(df) {
+  estimators <- data.frame(
+    dim = NA,
+    dim_025 = NA,
+    dim_975 = NA,
+    lin = NA,
+    lin_025 = NA,
+    lin_975 = NA,
+    ipw = NA,
+    ipw_025 = NA,
+    ipw_975 = NA,
+    s_ipw = NA,
+    s_ipw_025 = NA,
+    s_ipw_975 = NA,
+    dr = NA,
+    dr_025 = NA,
+    dr_975 = NA
+  )
+  
+  #Difference in Means
+  
+      # Y(0) cannot be observed. The control group mean is used as a plug in.
+  estimators$dim <- mean(df[[Y]][df$treat == 1]) - mean(df[[Y]][df$treat == 0])
+  
+  # Lin
+
+   estimators$lin <- tryCatch({
+    lm_lin(re78 ~ treat, covariates = ~ age + education + black + 
+           hispanic + married + nodegree + re74 + re75 + u74 + u75, data = df)$coefficients["treat"]
+  }, error = function(e) NA)
+  
+  # IPW
+  
+  w_att <- ifelse(df$treat == 1, 1, df$p_hat / (1 - df$p_hat))
+  estimators$ipw <- mean(df[[Y]][df$treat == 1]) -
+            sum(w_att[df$treat == 0] * df[[Y]][df$treat == 0]) / length(df[[Y]])
+   
+  # Stabilized IPW
+
+  w_s_att <- ifelse(df$treat == 1, 1, (mean(df$treat) / 
+                (1 - mean(df$treat))) *  (df$p_hat / (1 - df$p_hat)))
+  estimators$s_ipw <- mean(df[[Y]][df$treat == 1]) -
+                weighted.mean(df[[Y]][df$treat == 0] , w_s_att[df$treat == 0])
+    
+  # Doubly Robust
+
+  fit_dr <- lm(re78 ~ treat + age + education + black + hispanic + married + 
+                 nodegree + re74 + re75 + u74 + u75, data = df)
+  df$m1_hat <- predict(fit_dr, newdata = transform(df, treat = 1))
+  df$m0_hat <- predict(fit_dr, newdata = transform(df, treat = 0))
+  estimators$dr <- (1 / sum(df$treat)) * sum(df$treat * (df$m1_hat - df$m0_hat) + 
+                    df$treat * (df[[Y]] - df$m1_hat) -  
+                (1 - df$treat) * (df$p_hat / (1 - df$p_hat)) * (df[[Y]] - df$m0_hat))
+  
+  # Bootstrap and CI
+ 
+  bootstrap <- function(data, B = 500) {
+    n_t <- sum(data$treat == 1)
+    n_c <- sum(data$treat == 0)
+
+    results <- replicate(B, {
+        #Sample treated and control units separately 
+        if (n_t != 0) {
+          i <- which(data$treat == 1)
+          i_t <- sample(i, replace = TRUE)
+          d_t <- data[i_t, ]
+        }
+        if (n_c != 0) {
+          i <- which(data$treat == 0)
+          i_c <- sample(i, replace = TRUE)
+          d_c <- data[i_c, ]
+        }
+        d <- rbind(d_t, d_c)
+    
+        # Y(0) cannot be observed. The control group mean is used as a plug in.
+        dim <- mean(d[[Y]][d$treat == 1]) - mean(d[[Y]][d$treat == 0])
+        
+        # Lin estimator
+        lin <- tryCatch({
+        unname(lm_lin(re78 ~ treat, covariates = ~ age + education + black + 
+           hispanic + married + nodegree + re74 + re75 + u74 + u75, data = d)$coefficients["treat"])
+          }, error = function(e) NA)
+        
+        #re-estimate propensity scores
+        glm_d <- glm(treat ~ age + education + black + hispanic + married + 
+                   nodegree + re74 + re75 + u74 + u75, data = d, family = binomial(link = "logit"))
+        d$p_hat <- predict(glm_d, type = "response")
+    
+        #IPW estimator
+        w_att <- ifelse(d$treat == 1, 1, d$p_hat / (1 - d$p_hat))
+        att_ipw <- mean(d[[Y]][d$treat == 1]) -
+            sum(w_att[d$treat == 0] * d[[Y]][d$treat == 0]) / length(d[[Y]])
+    
+        #Stabilized IPW estimator
+        w_s_att <- ifelse(d$treat == 1, 1, (mean(d$treat) / 
+                                          (1 - mean(d$treat))) *  (d$p_hat / (1 - d$p_hat)))
+        s_ipw_ate <- mean(d[[Y]][d$treat == 1]) - 
+                  weighted.mean(d[[Y]][d$treat == 0] , w_s_att[d$treat == 0])
+        
+        #Doubly Robust Estimator
+        fit_dr <- lm(re78 ~ treat + age + education + black + hispanic + married + 
+                  nodegree + re74 + re75 + u74 + u75, data = d)
+        d$m1_hat <- predict(fit_dr, newdata = transform(d, treat = 1))
+        d$m0_hat <- predict(fit_dr, newdata = transform(d, treat = 0))
+        dr_att <- (1 / sum(d$treat)) * sum(d$treat * (d$m1_hat - d$m0_hat) + d$treat *
+          (d[[Y]] - d$m1_hat) -  (1 - d$treat) * (d$p_hat / (1 - d$p_hat)) * (d[[Y]] - d$m0_hat))
+  
+        c(dim = dim, lin = lin, ipw = att_ipw, s_ipw = s_ipw_ate, dr = dr_att)
+    })
+    as.data.frame(t(results))
+  }
+
+  boot <- bootstrap(df, B = 500)
+  
+  # Calculate confidence intervals for all estimates of the bootstrap
+  ci <- apply(boot, 2, quantile, probs = c(0.025, 0.975), na.rm = TRUE)
+  
+  #Save CI results to estimators data frame to return
+  for (name in colnames(boot)) {
+   estimators[[paste0(name, "_025")]] <- ci[1, name]
+   estimators[[paste0(name, "_975")]] <- ci[2, name]
+  }
+  
+  return(estimators)
+}
+```
+
+```{r}
+# Calculate all estimates for all data sets and create data frame
+
+df <- rbind(estimate(exp_df), estimate(cps_untrim), estimate(psid_untrim), 
+            estimate(cps_trim), estimate(psid_trim))
+
+rownames(df) <- c("exp_df","cps_untrim","psid_untrim","cps_trim","psid_trim")
+
+# Print data frame
+df
+```
+
+# AI Disclosure
+
+I used ChatGPT to aid with debugging/checking code, R syntax and function tips, explanation of documentation, and code examples for how to use R packages such as ggplot2, etc. For some examples, when I didn't understand an error message, I would ask about the error in reference to the problematic code found through the traceback. I asked ChatGPT for suggestions on functions and packages to use for a given task, such as to create a balance plot.
