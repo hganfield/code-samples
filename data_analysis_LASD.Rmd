@@ -1,0 +1,594 @@
+---
+title: "LASD Final Project: Data Analysis"
+output: word_document
+date: "2025-12-10"
+author: Heather Ganfield
+---
+
+# Deputy Gang Networks in the Los Angeles Sheriff's Department: Revealing Covert Networks Through Misconduct Files
+
+# Exploratory Data Analysis of Deputy Gang Network 
+
+Now the data has been cleaned, we will create a bipartite social network between the deputies and the use of force cases. We will conduct some descriptive analysis of this bipartite network and projections of both the deputy and case vertices networks. Then, we will begin to tackle the issue of missing data on gang affiliations of deputies. 
+
+The following libraries will be used in the data analysis. 
+
+```{r, message = FALSE, warning = FALSE}
+library(statnet)
+library(igraph)
+library(intergraph)
+library(readxl)
+library(dplyr)
+library(RColorBrewer)
+library(tidygraph)
+library(ggraph)
+library(tidyverse)
+library(scatterpie)
+
+```
+
+Upload the excel sheet with the cleaned data into a data frame object. 
+
+```{r}
+cleaned_data <- read_excel("Mastersheet_cleaned.xlsx", sheet = "Sheet1")
+cleaned_data
+```
+
+
+## Create Edge List and Attributes Tables
+
+The data is already arranged as associations between deputies and the cases they are involved in. Therefore, the edge list is just the first two columns of the data frame. Attributes tables are created so that the Year and Station columns are associated with the cases and the Gang Affiliation is associated with the deputies. 
+
+```{r}
+edge_list <- cleaned_data[, c("CaseNumber", "Deputy")]
+
+case_attributes <- cleaned_data %>%
+  group_by(CaseNumber) %>%
+  summarise(
+    Year = first(Year),  # assume Year is same for same CaseNumber
+    StationAssigned = first(StationAssigned) #assume Station same for same CaseNumber
+  ) %>%
+  rename(name = CaseNumber) %>%
+  mutate(type = "Case", GangAffiliation = NA)
+
+
+deputies_attributes <- cleaned_data %>%
+  group_by(Deputy) %>%
+  summarise(
+    GangAffiliation = first(GangAffiliation),  # assume Gang is same for same Deputy
+  ) %>%
+  rename(name = Deputy) %>%
+  mutate(type = "Deputy",  Year = NA, StationAssigned = NA)
+
+nodes <- bind_rows(case_attributes, deputies_attributes)
+
+```
+
+
+## Create bipartite graph
+```{r}
+g <- graph_from_data_frame(d = edge_list, vertices = nodes, directed = FALSE)
+
+V(g)$type <- V(g)$type == "Case"  # TRUE for Case nodes, FALSE for Officer nodes
+```
+
+Below is an initial plot of the bipartite graph to use for preliminary observations. We can see that the network is very sparse. It is disconnected to the extent of being made up of a high number of components. There are 629 deputy nodes in the graph and 706 edges between deputies and events. This means that most deputies are only involved in one use of force incident. In fact, since we know that all deputies in the graph are involved with at least one incident (there are no isolates in this network), at maximum, 77 deputies are involved in more than one event. Since most deputies are involved in only one case, many events will be in a component separated from all other events if all participating deputies are only involved in that event.
+
+```{r fig.width = 15, fig.height = 10}
+# Plot with color by type
+plot(g,
+     vertex.color = ifelse(V(g)$type == TRUE, "lightgreen", "lightblue"),
+     vertex.label.color = "black",
+     edge.color = "gray",
+     vertex.size = 6, vertex.label = NA)
+```
+## Preliminary Network Characteristics
+
+This bipartite network has deputy vertices (colored blue) and use of force event vertices (colored green). A tie between nodes represents a deputy being named as an involved officer in the incident report for the use of force event. As explained by Breiger, the relationships between the deputies and events exhibit duality (Breiger 1974). The relationship between these two entities can also be represented through two projections that come out of this bipartite graph. One projection of just the deputy nodes represents the relationship between deputies who are involved in the same veent. Another projection of the event nodes represents the relationship between events that share deputies. These projections will be explored below. 
+
+### Core Measures 
+
+#### Density
+
+Density for a bipartite graph must be calculated with a different denominator than for a standard network. A standard network would divide by the total possible ties between all vertices. This is how the igraph method calculated density, as seen below. However, in a two mode network, nodes of the same type cannot be connected with one another. This means the density denominator is the product of the number of deputy vertices and the number of event vertices (Borgatti & Everett 1997, 253). As expected for this very sparse network, the density is very small (0.00547). 
+
+```{r}
+#incorrect denominator
+edge_density(g)
+
+#correct denominator calculated manually 
+ecount(g) / (630 * 205)
+```
+#### Degree Distribution
+
+The degree distribution is right skewed. This means that most deputies are only involved in one event and most events have a low number of deputies involved. There are more deputy vertices in the graph so they are responsible for a higher proportion of the distribution, and so the deputies being involved in one event has a strong effect. 
+
+```{r}
+degree_distribution(g)
+
+plot(degree_distribution(g), type="h", xlab="Degree", ylab="Frequency")
+
+```
+
+### Centrality 
+
+The following code calculates the degree and betweenness centrality for the deputies only. We are only looking at the centrality for the deputies and not the events because we want to know if there is an association between high involvement with force cases and gang affiliation. The table lists both the centrality values and the gang affiliation. The centrality was also normalized using the strategies outlined by Borgatti & Everett for bipartite graphs. For degree, rather than being divided by all vertices, the values were divided by only the number of deputies. For betweenness, the raw values are divided by the maximum betweenness value since nodes rest on paths between event vertices not deputy nodes (Borgatti & Everett 1997).
+
+We are looking at degree centrality primarily because this demonstrates which deputies are most active in force cases. Between centrality was also calculated to see if there are any deputies who act as a broker to connect other deputies. This behavior is rather limited since the graph is largely disjointed. Closeness and eigenvector centrality were dropped due to the sparse nature of the graph. Degree centrlaity for the most part is the only type that is valuable. 
+
+As expected, deputies with a high betweenness centrality are deputies who are involved in more events. This demonstrated that deputies in more force cases serve as connectors between different clusters of deputies. 
+
+Of the deputies with the top ten highest degree centralities, five out of ten are involved in a gang. Gang members are not concentrated in the high degree centralities but instead are dispursued throughout all degree levels. This shows a weak correlation between high degree centality, or a high number of involved events, and gang affiliation. 
+
+```{r}
+nodes_of_interest <- V(g)[type == FALSE]   # deputies
+
+# Count number of event nodes (type == TRUE)
+num_events <- sum(V(g)$type == TRUE)
+
+# Raw centrality
+deg_raw <- degree(g, v = nodes_of_interest, mode = "all")
+bet_raw <- betweenness(g, v = nodes_of_interest, directed = FALSE)
+
+# Normalized centrality
+deg_norm <- deg_raw / num_events
+
+bet_norm <- if (max(bet_raw) == 0) {
+  rep(0, length(bet_raw))
+} else {
+  bet_raw / max(bet_raw)
+}
+
+# Build data frame
+centrality_df <- tibble(
+  name = nodes_of_interest$name,
+  degree = deg_raw,
+  degree_norm = deg_norm,
+  betweenness = bet_raw,
+  betweenness_norm = bet_norm,
+  GangAffiliation = V(g)$GangAffiliation[nodes_of_interest]
+)
+
+centrality_df <- centrality_df %>%
+  arrange(desc(degree))
+
+centrality_df
+```
+
+
+### Graph Components Separately 
+
+Since the network has many components, it will be useful to analyze these components as independent units. The code below calculates the total number of components in the network: 144. We then filter out the components that involve only one event. These components represent isolated events, where all deputies involved in the case are not involved in any other use of force case. This means these deputies are rarely involved in use of force incidents and are less likely to be involved in a gang. For the purpose of this analysis, these components will be ignored. After filtering out the isolated event components, there are 26 components remaining. 
+```{r}
+
+# Identify connected components
+components <- components(g)
+
+components$no
+
+# Extract subgraphs
+subgraphs <- lapply(1:components$no, function(i) {
+  induced_subgraph(g, vids = which(components$membership == i))
+})
+
+# Keep only subgraphs with more than 1 event node
+subgraphs_filtered <- Filter(function(sg) {
+  sum(V(sg)$type == TRUE) > 1   # change to V(sg)$type == 1 if numeric
+}, subgraphs)
+
+length(subgraphs_filtered)  # number of components that meet the criteria
+
+
+
+```
+This code graphs the components that have at least two event nodes. 13 out of the 26 components only have two event nodes. Though this shows a pattern of behavior for the individual deputies that connect these two events to each other, it does not provide much information about how these deputies are connected to other deputies and perhaps a deputy gang network. For this reason, we will focus on components that have the highest number of nodes. 
+```{r fig.width = 15, fig.height = 10}
+for (i in seq_along(subgraphs_filtered)) {
+  plot(
+    subgraphs_filtered[[i]],
+    layout = layout_with_fr,
+    vertex.size = 25,
+    vertex.label.cex = 0.8,
+    vertex.color = ifelse(V(subgraphs_filtered[[i]])$type, "skyblue", "salmon"),
+    main = paste("Component", i)
+  )
+}
+
+
+```
+
+I pulled three components out of this set to analyze more deeply: 9, 17, and 24. All three of these components have five or more events. These three components are all snakelike, which demonstrates the lack of cohesion within the components. Overall, deputies of different events are only connected to each other in the components through a couple key figures, such as Max Fernandez, Joseph P. Sumner, and Joseph W. Iberri in component 9. Fernandez is in a gang, but the other two connectors are not. In component 17, Cesar Chavez, another gang member, is only connected to one event and therefore is not a connecting factor of the component. In fact, in component 17, all the deputies with the highest degrees are not associated with gangs. Overall, these components do not seem to reveal patterns regarding gang affiliation.
+```{r fig.width = 30, fig.height = 30}
+ plot(
+    subgraphs_filtered[[9]],
+    layout = layout_with_fr,
+    vertex.size = 5,
+    vertex.label.cex = 0.8,
+    vertex.color = ifelse(V(subgraphs_filtered[[9]])$type, "skyblue", "salmon"),
+    main = paste("Component", 9)
+  )
+
+plot(
+    subgraphs_filtered[[17]],
+    layout = layout_with_fr,
+    vertex.size = 5,
+    vertex.label.cex = 0.8,
+    vertex.color = ifelse(V(subgraphs_filtered[[17]])$type, "skyblue", "salmon"),
+    main = paste("Component", 17)
+  )
+
+plot(
+    subgraphs_filtered[[24]],
+    layout = layout_with_fr,
+    vertex.size = 5,
+    vertex.label.cex = 0.8,
+    vertex.color = ifelse(V(subgraphs_filtered[[24]])$type, "skyblue", "salmon"),
+    main = paste("Component", 24)
+  )
+```
+
+## Create Cases and Deputies Projections 
+
+The code below creates the projections of the two types of vertices: force cases and deputies.
+
+```{r}
+projections <- bipartite_projection(g)
+
+cases_g <- projections$proj2
+deputies_g <- projections$proj1
+
+```
+
+### Plot Cases Projection
+
+```{r fig.width = 15, fig.height = 10}
+# Event projection: edges connect events that share at least one officer
+plot(cases_g,
+     vertex.color = "lightgreen",
+     vertex.size = 5,
+     vertex.label.cex = 0.8)
+
+ecount(cases_g)
+
+```
+
+### Case Projection Network Characteristics
+
+In this projection of the event vertices only, a tie between nodes represents events that share an involved officer. Overall, the event projection is not very useful for our research questions since it does not include deputy nodes, and we are concerned about the deputy network and how that is connected to deputy gang activity. For this reason, the centrality measurements are skipped in the analysis.
+
+#### Density
+
+Density can be calculated as normal since this is not a two-mode network. Again, the density is quite low. This means that most events are not connected to one another because deputies do not have repeat offenses and many events are isolates. 
+
+```{r}
+edge_density(cases_g)
+```
+#### Degree Distribution
+
+The degree distribution is right skewed and overall, degrees are quite low. This means that very few events share an involved deputy. This is reflective of the fact that most deputies in the data set are only involved in one use of force event. The most common degree is also zero reflecting that there are many isolates reflecting these events that include deputies that only were involved in that one incident. 
+
+```{r}
+degree_distribution(cases_g)
+
+plot(degree_distribution(cases_g), type="h", xlab="Degree", ylab="Frequency")
+
+```
+
+
+### Plot Deputies Projection
+
+```{r fig.width = 15, fig.height = 10}
+# Officer projection: edges connect officers who worked on the same event
+plot(deputies_g,
+     layout = layout_with_kk,
+     vertex.color = "lightblue",
+     vertex.size = 5,
+     vertex.label.cex = 0.8)
+
+ecount(deputies_g)
+E(deputies_g)
+```
+
+### Deputy Projection Network Characteristics
+
+In this projection of deputy nodes, a tie between nodes represents that two deputies were both involved in the same use of force incident. The degree then represents the number of deputies a given deputy has collaborated with in a use of force incident. 
+
+#### Density
+
+The density for the projection, since it is not two-mode, can be calculated as a normal network. The density of the projection is also quite low. This makes sense since most deputies are only connected to a few other deputies as most deputies are only involved in one force incident and each force incident has a low number of deputies involved. 
+
+```{r}
+edge_density(deputies_g)
+```
+#### Degree Distribution
+
+The degree distribution for the deputy projection is right skewed. This means that degrees tend to be lower. This means that most deputies have force incidents with a low number of other deputies. This could be for a handful of reasons, depending on the case. For some deputies, this may be because they are involved in only one force incident. However, even if a deputy was involved in multiple force incidents, the degree could still be low if the force incidents were with the same deputies or if each incident only involved a low number of deputies. Similarly, with the high degree deputies, some could be involved in only one force incident if the force incident involved many deputies. For example, sometimes when there is conflict between the deputies and a large block in the jails, a large team will be formed to extract the inmates from their cells. 
+
+```{r}
+degree_distribution(deputies_g)
+
+plot(degree_distribution(deputies_g), type="h", xlab="Degree", ylab="Frequency")
+
+```
+
+### Centrality 
+
+Since this is not a two-mode network, centrality can be normalized as for a standard network. 
+
+The first 20 deputies with the highest degree centrality are all not affiliated with a gang. However, 16 of these deputies are unnamed, so this represents a missing data issue. Of the first 10 named deputies with the highest degree centrality, only two are affiliated with a gang. Therefore, there is not a connection between being involved in force incidents with many deputies and being affiliated with a gang. The weaker correlation in compared to the centrality from the bipartite graph can be partially caused by the fact that a high degree does not mean being involved in many events. The deputies with a high degree in the projection could just be involved in incidents where many deputies responded. Overall, being well connected to other deputies in the network does not correlate with gang affiliation. 
+
+Betweenness centrality had similar results to the bipartite graph where the deputies with high betweenness scores are the deputies who are connected to many events and therefore connect different groups of deputies to one another. These characteristic of the deputies is translated to the projection as they now exist in the shortest paths between the deputies that are involved in their different cases, which end up clustered together. 
+
+
+```{r}
+centrality_df <- tibble(
+  name = V(deputies_g)$name,
+  degree = degree(deputies_g, mode = "all"),
+  degree_norm = degree(deputies_g, mode = "all", normalized = TRUE),
+  betweenness = betweenness(deputies_g, directed = FALSE),
+  btwn_norm = betweenness(deputies_g, normalized = TRUE, directed = FALSE),
+  GangAffiliation = V(deputies_g)$GangAffiliation  # preserve attribute
+)
+
+centrality_df <- centrality_df %>%
+  arrange(desc(degree)) 
+
+centrality_df
+```
+
+
+### Edge Weight Analysis
+
+The below visualization of the deputy projection only includes nodes that have a weight larger than 1. This means that each dyad of deputies has been involved in more than one use of force incident together. As seen below, there are six components to this graph. Three of these components involve only two deputies. This could mean that these two deputies are partners; the original reports would need to be consulted to confirm this. If this is the case, the connection could be due to the assignment given by their bosses rather than a connection self-created through gang affiliation. 
+
+Two components involve three deputies. One of these components is a closed triad. Similarly to the two deputy components, this could be explained by assignments given by the higher ups or by gang activity. For example, Max Fernandez is part of the Gladiators. We can therefore suspect that Robert Risiglione and Kevin M. Acebedo may also be part of the Gladiators. 
+
+The last component is ten deputies. Upon some review of the data, this is an issue of two reports being generated for the same incident. 
+
+```{r fig.width = 20, fig.height = 20}
+deputy_proj_strong <- subgraph.edges(
+  deputies_g,
+  E(deputies_g)[weight > 1],
+  delete.vertices = TRUE
+)
+
+plot(
+  deputy_proj_strong,
+  edge.label = E(deputy_proj_strong)$weight,
+  vertex.color = "lightblue",
+  vertex.size = 10,
+  vertex.label.cex = 0.8
+)
+
+
+
+```
+
+### Future Possibilities of Subgraph Analysis
+
+For future data analysis, subgraphs could be created based on the station attribute of the events. Deputies involved in events that occur at the same station are likely to be connected to one another since they have the same base and will get their assignments from the same place. Stations can even function as a nominal boundary for a deputy social network. Station level analysis would be more useful if we had the complete roster of deputies who were stationed at a particular location and had more data on incidents deputies responded to together. Otherwise, there is an issue of missing ties. 
+
+Another unit for subgraph analysis would be the components of the deputy projection. This is useful compared to the components of the bipartite graph because it focuses on the direct connections between deputies and the deputy gang network can be analyzed out from there. 
+
+## Missing Data
+
+The biggest challenge with this data set is the issue of missing data. There are four types of missing data in this network: edges between deputies, nodes of deputies, names of deputies, and gang affiliations of deputies. The three former types of missing data are difficult to find using the data collection method implemented thus far. We only have incident reports where a use of force was used that resulted in injury or death of the victim. The ties between deputies represent being involved in use of force incidents together. This is only one type of relationship that exists between deputies. Deputies write many other incident reports about situations they respond to together which we do not have access to. We also do not have station rosters to create networks where edges represent deputies working at the same station. Similarly, we don't have data on which deputies are partnered on patrol and cannot create a network based on those ties. Overall, this means that the type of tie we have between deputies only encompasses a small portion of the work deputies are involved in. The limits of the ties we have prevent us from capturing a true picture of deputies relationships within their work which makes it difficult to extrapolate the gang network from these connections. In order to find more ties between deputies, we would need another data source. As mentioned in the introduction, we could also collect data outside of the work context, such as social media connections. Similarly, we would need to use similar methods to get more information about missing nodes, or deputies that are part of the LASD but do not have any use of force incident reports from the time period. Department rosters or other documents could provide this missing information. 
+
+The third type of missing data is the names of deputies who were redacted from the reports received. One common reason deputies are redacted from reports is because they work in an undercover unit. Since this information is not publicly available, it is impossible to find these names from official department reports unless there are mistakes in redaction. In order to find any of these names, outside sources would need to be used, such as social media or other non-work connections. 
+
+The last type of missing data is the gang affiliation of deputies. The gang affiliations in the data were based on Cerise Castle's database. She created this database through her journalism work so it is compiled from a variety of sources, such as personal interviews, court documents, and news articles. During the data coding process of the misconduct reports, we also conducted additional archival research and found more gang affiliations through news articles and court documents. Of course, we cannot assume that we have uncovered every deputy gang member. A key purpose of this research is to uncover what other deputies are likely to have gang affiliations. Cerise can then use this information to know who to focus on investigating. Additionally, the confidence in the gang affiliation of deputies listed in the database varies. For example, there are some deputies listed in the gang database where we only have their last name. Analyzing the social network could help increase or decrease confidence in the gang affiliations we are unsure about. 
+
+The missing data of all types could lead to biases in conclusions drawn. One paper discusses how bias may increase as the level of missing information increases. This effect could be particularly strong if central nodes are missing (Smith et al. 2017). Because of the missing data, any conclusions and assumptions must be taken cautiously. It is possible to assume that the central deputies in gangs will be represented in our data because they will be involved in use of force incidents due to their involvement in the gang. Empirically, we have seen this to be the case as gang member deputies that Cerise Castle is aware of have come up in our data collection. However, though some of these central nodes to the deputy network are present, we cannot assume that all of the central nodes are present in the data. Therefore, the missing data can lead to biases in any conclusions drawn. 
+
+For the purposes of this exploratory analysis, we will focus on this missing data on gang affiliations. This will be the focus because this type of missing data can be evaluated with just the social network data we currently have. The method used will be to look at the components of the deputy projection that invovle deputies that are known to have gang affiliations. From this, conclusions can be drawn about what other deputies are likely to be affiliated with a gang and who should be investigated further using ethnographic and archival methods. 
+
+## Visualization Based on Gang Affilliation
+
+The code below creates a graph from the deputy projection that colors the nodes based on gang affiliation. Components that do not include any deputies who are affiliated with a gang were removed for ease of the visual. Since some deputies are affiliated with multiple gangs, the nodes are colored using a pie graph method to visualize these multiple affiliations. These nodes were also made larger to make them easier to see. 
+
+```{r}
+# -------------------------------
+# Load packages
+# -------------------------------
+library(igraph)
+library(ggraph)
+library(tidyverse)
+library(scatterpie)
+library(scales)
+
+# -------------------------------
+# 2. Clean GangAffiliation attribute
+# -------------------------------
+# Convert comma-separated string into list per vertex
+V(deputies_g)$GangAffiliationList <- lapply(V(deputies_g)$GangAffiliation, function(s) {
+  tags <- str_split(s, ",\\s*")[[1]]
+  tags <- gsub("/", "_", tags)       # clean / characters
+  tags[tags != ""]                   # remove empty strings
+})
+
+# -------------------------------
+# 3. Identify unique tags and null option
+# -------------------------------
+null_type <- "No affiliation"
+all_tags <- sort(unique(unlist(V(deputies_g)$GangAffiliationList)))
+pie_colors <- setNames(hcl.colors(length(all_tags), "Set3"), all_tags)
+
+# -------------------------------
+# 4. Filter components with at least one non-null node
+# -------------------------------
+# Count non-null attributes per node
+non_null_counts <- sapply(V(deputies_g)$GangAffiliationList, function(tags) {
+  sum(tags %in% setdiff(all_tags, null_type))
+})
+has_non_null <- non_null_counts > 0
+
+components <- clusters(deputies_g)
+membership <- components$membership
+
+keep_components <- sapply(unique(membership), function(comp_id) {
+  any(has_non_null[membership == comp_id])
+})
+nodes_to_keep <- V(deputies_g)[membership %in% which(keep_components)]
+
+# Induce filtered subgraph
+deputies_g_filtered <- induced_subgraph(deputies_g, vids = nodes_to_keep)
+
+# Ensure every vertex has at least the null_type if empty
+V(deputies_g_filtered)$GangAffiliationList <- lapply(V(deputies_g_filtered)$GangAffiliationList, function(tags) {
+  if(length(tags) == 0) null_type else tags
+})
+
+# -------------------------------
+# 5. Create pie dataframe
+# -------------------------------
+pie_mat <- do.call(rbind, lapply(V(deputies_g_filtered)$GangAffiliationList, function(tags) {
+  as.numeric(all_tags %in% tags)
+}))
+pie_df <- as.data.frame(pie_mat)
+colnames(pie_df) <- all_tags
+pie_df$name <- V(deputies_g_filtered)$name
+
+# Add layout positions
+layout <- create_layout(deputies_g_filtered, layout = "fr")
+pie_df <- pie_df %>%
+  left_join(layout %>% select(name, x, y), by = "name")
+
+# -------------------------------
+# 6. Compute node sizes
+# -------------------------------
+pie_df <- pie_df %>%
+  mutate(
+    non_null_count = rowSums(select(., all_of(setdiff(all_tags, null_type)))),
+    pie_radius = rescale(non_null_count, to = c(0.05, 0.8))
+  )
+
+# -------------------------------
+# 7. Plot using ggraph + geom_scatterpie
+# -------------------------------
+p <- ggraph(layout) +
+  geom_edge_link(alpha = 0.3, colour = "grey70") +
+  geom_scatterpie(
+    aes(x = x, y = y, group = name, r = pie_radius),
+    data = pie_df,
+    cols = all_tags,
+    color = NA
+  ) +
+  scale_fill_manual(values = pie_colors) +
+  theme_void() +
+  theme(legend.position = "right") +
+  ggtitle("Deputy Network Colored by Gang Affiliation")
+
+print(p)
+
+```
+
+### Components of Gang Affiliation Graph 
+
+The code below graphs each component of the above graph separately to more easily visualize the subgraphs. 
+
+```{r}
+# Connected components
+components_filtered <- clusters(deputies_g_filtered)
+membership_filtered <- components_filtered$membership
+
+# Count non-null nodes per component
+non_null_counts <- sapply(V(deputies_g_filtered)$GangAffiliationList, function(tags) {
+  sum(tags %in% setdiff(all_tags, null_type))
+})
+
+component_ids <- unique(membership_filtered)
+component_non_null <- sapply(component_ids, function(comp_id) {
+  sum(non_null_counts[membership_filtered == comp_id] > 0)
+})
+
+# Keep only components with at least one non-null node
+valid_components <- component_ids[component_non_null > 0]
+
+plots <- list()  # store plots
+
+for (i in seq_along(valid_components)) {
+  comp_id <- valid_components[i]
+  nodes_in_comp <- V(deputies_g_filtered)[membership_filtered == comp_id]
+  
+  # Induce subgraph
+  subgraph_comp <- induced_subgraph(deputies_g_filtered, vids = nodes_in_comp)
+  
+  # Ensure every vertex has at least the null_type if empty
+  V(subgraph_comp)$GangAffiliationList <- lapply(V(subgraph_comp)$GangAffiliationList, function(tags) {
+    if(length(tags) == 0) null_type else tags
+  })
+  
+  # Pie dataframe
+  pie_mat <- do.call(rbind, lapply(V(subgraph_comp)$GangAffiliationList, function(tags) {
+    as.numeric(all_tags %in% tags)
+  }))
+  
+  pie_df <- as.data.frame(pie_mat)
+  colnames(pie_df) <- all_tags
+  pie_df$name <- V(subgraph_comp)$name
+  
+  # Layout
+  layout <- create_layout(subgraph_comp, layout = "fr")
+  pie_df <- pie_df %>%
+    left_join(layout %>% select(name, x, y), by = "name") %>%
+    mutate(
+      non_null_count = rowSums(select(., all_of(setdiff(all_tags, null_type)))),
+      pie_radius = scales::rescale(non_null_count, to = c(0.05, 0.2))
+    )
+  
+  # Plot
+  p <- ggraph(layout) +
+    geom_edge_link(alpha = 0.3, colour = "grey70") +
+    geom_scatterpie(
+      aes(x = x, y = y, group = name, r = pie_radius),
+      data = pie_df,
+      cols = all_tags,
+      color = NA
+    ) +
+    scale_fill_manual(values = pie_colors) +
+    theme_void() +
+    theme(legend.position = "right") +
+    ggtitle(paste0("Deputy Network - Component ", comp_id))
+  
+  plots[[i]] <- p
+}
+
+# Print all plots
+for(p in plots) print(p)
+
+# Save each component as a PNG
+for(i in seq_along(plots)) {
+  filename <- paste0("deputy_component_", i, ".png")
+  ggsave(filename, plot = plots[[i]], width = 12, height = 12, units = "in", dpi = 300)
+}
+
+```
+
+
+### Interpretation and Next Steps
+
+The components above will be analyzed at the subgraph level to see what conclusion can be drawn due to the edges between deputies and background information on the gangs. In some cases, it does not seem likely that there are gang members marked as unaffiliated. Some components do not have any missing data, such as component 8, where all deputies are part of the Posse gang. There are also multiple small components that only have one gang member, such as 4, 15, 17, 19, 26, and 27. In all these components, the one gang member is part of 2000/3000 Boys. In this case, since the gang is associated with the jail, it is likely the other deputies are connected to the gang members due to patrol assignments that were later in the gang members career. Therefore, these deputies are less suspect of being part of a gang. Component 23 is interesting because it only involves two deputies, who are part of different gangs. This could be due to gang rivialries within a station.  
+
+Component one is dominated by deputies involved in the 2000/3000 Boys. It is therefore likely that other deputies in this component are also involved in 2000/3000 Boys. There are also a handful of components where there is only one gang member that is associated with patrol gangs (not 2000/3000 Boys). This is the situation of components 2, 10, 12, 21, 22, 24 and 29, for example. Most of these graphs are quite small. In the case of 21 and 22, the components are dyads. In collaboration with analysis of the original reports, it could be likely that these unaffiliated members are part of the same gang, if the use of force seems reflective of gang behavior. These deputies should be prioritized as possible gang members. However, the deputies are only connected to one gang member that we know of, so the probabilty could be lower than those connected to more, such as in component one. Component 11, 18, 20, and 30 are examples of components where there are multiple gang members, sometimes affiliated with different gangs. Since there are multiple gangs involved, it is possible that these are outliers and none of the gangs have a present in these cases. However, since gang activity is consolidated in this area, this section of the network would be another area worthy of investigation. 
+
+The pursuit of missing data would be further supported through new data collection methods. A study focused on uncovering covert terrorist networks utilized interviewing, participant observation, and textual analysis of news articles to create network data (Kenney and Coulthart, 2015). As mentioned above, only through new data will more edges and nodes be uncovered. These methods would also be useful to confirm suspicions about deputies that seem likelky to be affiliated with a gang due to connections with many gang members. 
+
+### Response to Research Questions
+
+The first set of research questions addressed the connection between use of force incidents and deputy gang involvement. My hypothesis was that there would be a positive correlation between being involved in multiple force incidents and gang affiliation. As seen in the degree centrality analysis, this hypothesis was for the most part not supported or inconclusive. Overall, gang members have both low and high involvement in force incidents. However, it is likely the lack of pattern is due to the missing data issue and a lack of records on most deputy behavior. 
+
+The second set of research questions revolved around the missing data, particularly involving unknown gang affiliation for most of the deputies. In order to address this question, I looked at the deputy projection components that included known gang members. Focusing on these components would be a good place to start in further investigating which deputies are likely to be involved in deputy gangs. However, for the most part, the components did not reveal dense networks of deputy gang members, except in component one. Overall, deputy gang members are not connected to one another and are mostly connected to deputies unaffiliated to gangs. This also disproves the hypothesis that gang members are likely to be connected to one another. However, after investigations are conducted on the unaffiliated deputies in these components, perhaps the theory will be supported that an unaffiliated deputy with a high number of connections to gang members is likely to also be in a gang. 
+
+# Bibliography
+
+Borgatti SP, Everett MG (1997) Network analysis of 2-mode data. Social Networks 19(3): 243–269.
+
+Breiger, R.L., 1974 "The Duality of Persons and Groups"
+
+Kenney, Michael, and Stephen Coulthart. “The Methodological Challenges of Extracting Dark Networks: Minimizing False Positives through Ethnography.” Chapter. In Illuminating Dark Networks: The Study of Clandestine Groups and Organizations, edited by Luke M. Gerdes, 52–70. Structural Analysis in the Social Sciences. Cambridge: Cambridge University Press, 2015.
+
+Smith, Jeffrey A et al. “Network sampling coverage II: The effect of non-random missing data on network measurement.” Social networks vol. 48 (2017): 78-99. doi:10.1016/j.socnet.2016.04.005
+
+# AI Disclosure
+
+I used ChatGPT to aid with coding and debugging. 

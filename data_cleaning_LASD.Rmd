@@ -1,0 +1,422 @@
+---
+title: "LASD Final Project: Project Overview and Data Cleaning"
+output: word_document
+date: "2025-12-10"
+author: Heather Ganfield
+---
+
+# Deputy Gang Networks in the Los Angeles Sheriff's Department: Revealing Covert Networks Through Misconduct Files
+
+# Project Overview and Data Cleaning
+
+## Introduction 
+
+This data exploration project utilizes a database of deputy misconduct files obtained from the Los Angeles Sheriff Department (LASD). I have been working as a research assistant with the qualitative coding team of these misconduct files through the University of Chicago Justice Project, run by Dr. Robert Vargas. This data collection process is run by Cerise Castle, a Los Angeles based journalist whose work focuses on reporting on deputy gang activity in the LASD. She has a podcast called *A Tradition of Violence*, which details some of the history of deputy gang activity and the crimes and violence they have committed (Castle). The goal of this data collection is to use the misconduct cases to learn more about deputy gang activity within the LASD. Castle's work has revealed how deputy gangs often engage in excessive force in how they engage with inmates in the jails or civilians they interact with on the streets. An investigation by the ACLU from the late 2000s uncovered excessive inmate mistreatment in Men's Central Jail (“ACLU Releases...", 2009) and incidents from this time have been connected to gang activity. Since there is a pattern of deputy gang members committing excessive use of force violations, reports on these types of incidents within the LASD can help to reveal more information about deputy gangs. 
+
+Due to the Freedom of Information Act (FOIA), our team was able to request files on deputy misconduct fitting certain categories, such as use of force, dishonesty, and sexual harassment. For the purposes of this social networking project, I am focusing on misconduct cases regarding use of force that resulted in injury or death of the force victim. The data set is currently incomplete as the FOIA request is still being processed by the LASD, and we have not yet received and coded all misconduct cases. The time period of the data set for this project is roughly 1991-2009. The Department releases data roughly chronologically, but since the release is in progress, there is no way to validate that we have already received all files for these years. 
+
+Cerise's research team has been coding these misconduct cases in a Google Sheets document by recording essential case information (date, location, type of misconduct, victim information, names of deputies involved and their gang affiliation, etc.) and a summary of the case incident. We also conducted archival information to find more information on the deputies. Gang affiliation was determined either through archival research or through a database Cerise has created throughout her research of deputies known to be in gangs. I included gang affiliations of all levels of certainty in the data; some affiliations are not fully confirmed at present. 
+
+Deputy gangs do not face accountability for their actions. Therefore, deputies involved in gangs often do not hide their affiliations or tattoos. Prior Sheriff Alex Villanueva recognizes the existence of such gangs, though labels them as "cliques" or "subgroups" rather than "gangs" (NBC Los Angeles), implying that these organizations do not fit the definition of a gang and do not commit crimes and acts of violence. However, just because some deputies are open does not mean we have a complete image of who is affiliated with these gangs. 
+
+One set of research questions involves understanding the behavior of deputies and known deputy gang members. How common is it for a given deputy to be involved in multiple use of force incidents? If a deputy is involved in multiple use of force incidents, are they more likely to be affiliated with a gang? Are repeat offenders likely to be connected to one another? From working in the data collection process, it seems that there are a significant number of repeat offenders, though they make up a minority of the total deputies mentioned in the reports. Of those who are involved in multiple incidents, my hypothesis is that deputies who are involved in multiple force incidents are more likely to be affiliated with a gang. Similarly, if a given deputy is affiliated with a gang, I expect that deputy to be involved in multiple force incidents. This second hypothesis is likely to be stronger, especially since we have missing data and do not know all gang affiliations. Some repeat offenders may be unknown gang members, which would then skew the data away from supporting that repeat offenders are involved in gangs. 
+
+We also have the issue of missing data. Deputy gangs are a relatively covert network. Though some members feel comfortable displaying their tattoos on social media and disclosing their status to Cerise, others may not want their name connected to the gang. How can social network methodology be used to reveal unknown gang affiliations? My hypothesis is that unknown gang members are likely to be connected to multiple known gang members. One reason for this is that force incidents that involve gang members often are more suspicious. Though the LASD rarely disciplines for illegitimate uses of force, from reading many reports, there is a pattern of more suspicious behavior in reports that involve deputy gang members. If one deputy gang member is willing to use force excessively, the other deputies involved in such an incident are likely to also be gang members. Therefore, if a deputy is involved in multiple uses of force with gang members, they are likely to also be a gang member.   
+
+Overall, this research is important in order to understand the structure and behavior of deputy gang networks. Law enforcement has a lot of power in society and deputies must be held accountable for their actions. The violence perpetrated by deputy gangs must be brought into the light in order for policy to respond and for the harms on communities to end. 
+
+## Research Design
+
+For the purpose of this project, I deleted columns from the database irrelevant to this social network analysis (i.e. summary, location). The remaining data columns included: case number; officer involved; gang affiliation; station; year; and victim name, age, race, and gender. There was a lack of standardization in how the information was coded due to the preferences of different research assistants and changes over time in the directions given to research assistants during different stages of the project. For example, the way redacted officers names were recorded is not standardized and there is no global numbering across the data set. Also, a given deputy does not always have their name written in the same format. For example, one row may label them as John Doe and another as John A. Doe. This also needed to be standardized. The naming of stations and gangs also needed to be standardized (i.e. "Compton" and "Compton Station"). The rows of data originally are organized so that there is one row per deputy per case per victim in the use of force. For the purpose of this analysis, we are ignoring victim data. The rows of the data set therefore needed to be collapsed so that there is only one row per deputy per case. 
+
+After cleaning the data for this project, the result was a bipartite network of deputies and use of force cases. The boundaries of this social network are defined nominally, based on shared events (Rawlings 2023). Precisely, the boundary of nodes and edges included in this network are deputies and events that are in the reports obtained from the LASD from the years 1991-2009. There is an edge between a deputy and a case if the deputy is named as an involved officer in the case file. There are 835 vertices and 707 edges. The network has a total of 630 deputies and 205 cases. Attribute tables were created for both deputies and cases. The deputy attribute table includes data on gang affiliation. The cases attribute table includes data on the year of the incident and which LA sheriff station was involved in the case. 
+
+This nominal method for data collection has some possible biases in how it captures relationships between nodes (Rawlings 2023). Deputies are connected to one another indirectly through use of force events. This is only one possible source of connection between deputies. Also, we only know about the use of force incidents that we have received reports for. There may be more reports not yet received or incidents that were covered up and never written up into reports. There is a bias that incidents that are the result of gang activity are more likely to not be written up. Considering the ACLU investigation mentioned above, though we have received reports from that time period and a handful point to gang activity, it is likely that more incidents exist that we do not know about.
+
+For the purposes of this analysis, there is a focus on basic descriptive characteristics of the network, such as density and centrality. The second focus is on the issue of missing data. Due to the limitations of creating a network out of only one type of administrative record (misconduct use of force reports), we have limited information on the deputies who work for the LASD during the time period and the connections between them. Also, due to the covert nature of the deputy gangs, there is missing information about which deputies have gang affiliations. By focusing on the components of the network that contain known gang members, we can begin the process of uncovering this missing information. 
+
+It is important to consider the ethical considerations of using this data. As Breiger brings up in his piece on ethics in social network analysis, just because the data is publicly and legally available, the individuals do not necessarily expect their information to be used in this way (Breiger 2005, 91-92). Though deputies would not expect a social network to be built out of these files, as public officers, they should expect to be subject to public accountability. The goal of this project is to increase accountability in how deputies use force on the job and to reveal how some deputies are involved in deputy gangs. Though many officers in this data set are possibly unaffiliated to gangs, they are still subject to the need of accountability. 
+
+## Future Possibilities 
+
+This project is a preliminary data analysis. Since the data collection process is in progress, the data set is incomplete. Future analysis on the complete data set will better capture the deputy gang network. Furthermore, though the misconduct cases provide some connections between deputies, as well as descriptions of deputy gang behavior, the social network data is relatively sparse. This is seen in the overall sparseness of the network. In order to reveal more ties between deputies and the overall gang structures, supplemental data sources would be of use. These supplemental sources could be obtained through more archival research or other methods to find connections between deputies. For example, data could be obtained about where deputies went to high school or which LASD training class they were in. Social media data could also be analyzed; Cerise has done some undercover work to follow deputies or join deputy Facebook groups, so we know deputy gangs use social media platforms and talk about their gang activity on these platforms. Using other sources of data to build possible networks will help further answer the questions on which deputies are in gangs and filling in the pieces on the redacted deputies. The current data set also does not have demographic information for the deputies, such as race, gender, or age. This information could be useful to understand the demographic makeup of gangs and to see if the deputy gangs exhibit homophily. 
+
+The initial data set also has information that was not analyzed in this preliminary work. We have information on the victims of the use of force and any discipline received by officers. The initial data set also has other types of misconduct cases, such as dishonesty and sexual harassment. Including this data would provide more insight on the behavior of deputy gangs, if there are patterns in who they choose as victims, and their level of misconduct in other categories. As part of the data coding, we have read the incident descriptions in detail and written up summaries. Using these summaries, we could pull out commonly used force tactics mentioned in the report (Cerise has mentioned that breaking the orbital bone has been a common tactic within deputy gangs) to find patterns in the cases with gang members and further highlight cases in the network that seem likely associated with gang activity.
+
+The initial data set also includes information on the address, latitude, and longitude of where a given incident occurred. Using this data, a similar methodology to the work of Radil et al. (2010) could be adopted to evaluate the connection between the deputy network and the spatial distribution of force incidents. In the Radil et al. study, a network depicting civilian gang rivalries was mapped based on the territories of the gangs. This method revealed the correlation between rivalry and proximity (Radil et al. 2010). If this method was adopted to the deputy gang data set, we could see if there is any relationship between the deputy gang network and where force incidents occur. Similarly, another study suggested the use of geo-temporal data to reveal connections between criminal actors. The idea behind this is that two individuals who have similar spatial patterns are likely to be connected (Valley et al., 2015). Adopting this idea, the patterns of where deputies patrol could be used to find social connections. However, such methods would be better applied to a different data source than just the misconduct report, such as daily patrol logs. 
+
+# Data Cleaning Procedure
+
+The following libraries will be used in the data cleaning process. 
+
+```{r, message = FALSE}
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(janitor)
+library(purrr)
+library(writexl)
+library(stringdist)
+library(readxl)
+```
+
+The CSV file with the original data is uploaded as a dataframe for cleaning. 
+
+```{r}
+df <- read.csv("Master_Sheet_to_Clean.csv", as.is = TRUE)
+```
+
+## Standardize Deputy Names 
+
+The first step of data cleaning is to standardize the names of the deputies. There are two classes of deputies in the data: named and redacted. The named deputies need to be standardized so that a given deputy's name is written consistently across the database. Currently, there are discrepancies on if a middle name or initial is included. The second code chunk goes through to determine the most specific version of a given deputy's name and standardize all instances to be the same. The first code chunk removes the rank (i.e. Deputy, Sergeant) if listed before an officer names. (I am ignoring rank for the purposes of this analysis. Most officers involved in these cases are of the rank Deputy Sheriff.) Some officers also have numbering based on the case reports (i.e. (E1), (E2)). These numbering were also removed for named deputies. The standardized names are saved to a new row in the database in order to conduct a sanity check and ensure the code ran correctly. 
+
+
+```{r - Remove Rank and Numbering of Named Deputies}
+
+# Vector of patterns that indicate an unnamed deputy
+unnamed_patterns <- "(firstname_unknown|lastname_unknown|unknown|redacted)"
+
+# Vector of possible ranks to remove
+ranks <- c("Deputy", "Sgt\\.?","Sergeant","Lt\\.?","Lieutenant",
+           "Capt\\.?","Captain", "(Deputy)", "Supervising Line Deputy", "Custody Assistant")
+
+rank_pattern <- paste0("^(", paste(ranks, collapse="|"), ")\\s+", collapse="")
+
+df <- df %>%
+  mutate(
+    Officer_clean = case_when(
+      # 1. Unnamed deputies → leave unchanged (skip for now)
+      str_detect(tolower(Officer), unnamed_patterns) ~ Officer,
+      
+      # 2. Named deputies → clean
+      TRUE ~ Officer %>%
+        # Remove rank at beginning
+        str_remove(regex(rank_pattern, ignore_case = TRUE)) %>%
+        # Remove trailing (E1), (E2), etc.
+        str_remove("\\(E\\d+\\)$") %>%
+        # Trim leftover whitespace
+        str_squish()
+    )
+  ) %>% 
+  
+relocate(Officer_clean, .after = `Officer`)
+```
+
+```{r - Standardize First, Last, and Middle Name/Initial}
+df <- df %>%
+  #Create matching keys: first and last name only 
+  mutate(
+    first_name = word(Officer_clean, 1),
+    last_name = word(Officer_clean, -1)
+  ) %>%
+  
+  #For each person, identify the most specific (longest) name
+  
+  group_by(first_name, last_name) %>%
+  mutate(
+    most_specific_name = Officer_clean[which.max(nchar(Officer_clean))]
+  
+  ) %>%
+  ungroup()
+
+df <- df %>%
+  mutate(Officer_clean = most_specific_name)
+```
+
+With redacted names, they are currently labeled in different ways (i.e. "Redacted", "Firstname_unknown Lastname_unknown"). The naming of redacted deputies will be standardized as "Unknown_*number*", where the number will represent global numbering for all redacted deputies across all cases. Since there is a separate row per victim, a redacted deputy may be listed multiple times within a case. In order to determine if an unnamed observation should have the same number as another unnamed observation, the code first checks to see if this case has numbering from the misconduct file. If so, unnamed observations with the same number will have the same global numbering. If not, victim information is used to make the determination. Within a case, if two unnamed observations have the same victim, they must have different global numbering. However, if two unnamed observations have a different victim, they are assumed to be the same person and have the same global numbering. Again, the standardized names are saved to a new row in the database in order to conduct a sanity check and ensure the code ran correctly. 
+
+```{r - Standardize and Number Unnamed Deputies}
+
+df <- df %>%
+  rename(case_id = `CaseNumber`) %>%
+  mutate(
+    # Is this an unnamed deputy?
+    is_unknown = str_detect(
+      tolower(Officer_clean),
+      "(firstname_unknown|lastname_unknown|unknown|redacted)"
+    ),
+
+    # Extract numbers like (E1), (E3), (E10), Unknown 1, Unknown_5, etc.
+    embedded_num = str_extract(Officer_clean, "(?<=\\(E)\\d+(?=\\))"),
+    embedded_num = as.numeric(embedded_num)
+  )
+
+df <- df %>%
+  mutate(
+    victim_signature = paste(
+      `VictimName`, Age, Gender, Race, sep = "_"
+    )
+  )
+df_unknown <- df %>%
+  filter(is_unknown) |>
+  group_by(case_id) %>%
+  mutate(
+    # If number exists, use it as grouping
+    temp_group = ifelse(
+      !is.na(embedded_num),
+      paste0("num_", embedded_num),
+      paste0("vic_", victim_signature)
+    ),
+
+    # If no numbers exist AND multiple rows share same signature,
+    # they must be *different* deputies → differentiate by row_number()
+    temp_group = ifelse(
+      startsWith(temp_group, "vic_"),
+      paste0(temp_group, "_", row_number()),
+      temp_group
+    )
+  ) %>%
+  ungroup()
+
+unknown_id_map <- df_unknown %>%
+  distinct(case_id, temp_group) %>%
+  arrange(case_id, temp_group) %>%
+  mutate(global_unknown_id = paste0("Unknown_", row_number()))
+
+df <- df %>%
+  left_join(df_unknown %>% select(case_id, Officer_clean, temp_group),
+            by = c("case_id", "Officer_clean")) %>%
+  left_join(unknown_id_map, by = c("case_id", "temp_group")) %>%
+  mutate(
+    Officer_final = ifelse(
+      is_unknown,
+      global_unknown_id,
+      Officer_clean
+    )
+  )
+
+df <- df %>%
+  relocate(Officer_final, .after = Officer_clean)
+```
+## Collapse Victim Information to Create One Line Per Case Per Deputy 
+
+This preliminary data analysis project will not look at victim information. Therefore, in cases where there is more than one victim, we can collapse the rows so that there is only one observation per deputy per case. Once this has been done, the rows with victim information and other helper columns created thus far can be deleted. 
+
+```{r - calculate victim numbers and condense rows to one line per case per deputy}
+df <- df %>%
+  # Build victim signature (if not already built)
+  mutate(
+    victim_signature = paste(
+      `VictimName`, Age, Gender, Race,
+      sep = "_"
+    )
+  ) %>%
+  
+  # Group and summarize
+  group_by(case_id, Officer_final) %>%
+  summarise(
+    # keep all NON-victim columns and NOT the cleaning columns
+    across(
+      -c(
+        `VictimName`, Age, Gender, Race, victim_signature,
+        Officer_clean,          # drop intermediate clean column
+        `Officer`,             # drop raw column (if present)
+        is_unknown, embedded_num, temp_group, # drop helper columns
+        first_name, last_name, is_unknown, embedded_num, 
+        temp_group, most_specific_name, global_unknown_id   
+      ),
+      ~ dplyr::first(.x),
+      .names = "{.col}"
+    ),
+    .groups = "drop"
+  ) %>%
+  # ensure Officer_final is next to case_id
+  relocate(Officer_final, .after = case_id)
+
+```
+
+## Standardize Station and Gang Names 
+
+The following code provides a list of distinct stations and gangs that are listed in the data. 
+
+```{r - get unique names}
+# Unique stations
+unique_stations <- df %>%
+  distinct(`Station`) %>%
+  arrange(`Station`)
+
+unique_stations
+
+# Unique gangs
+unique_gangs <- df %>%
+  distinct(`Gang`) %>%
+  arrange(`Gang`)
+
+unique_gangs
+
+
+```
+
+Using the lists generated before, I created a list of canonical stations and canonical gangs to conduct fuzzy matching with to standardize the naming in the data. The code below completes this fuzzy matching for stations. 
+
+```{r - Fuzzy Matching for Stations}
+# Canonical stations
+correct_stations <- c("Altadena", "Carson", "Century", "Cerritos", "Compton", "Courts", "Crescenta Valley", "North County Correctional Facility", "East LA", "Special Enforcement Bureau/Canine Detail", "Inmate Reception Center", "Industry", "Lakewood", "Lancaster", "Lennox", "Lost Hills", "Lynwood", "Malibu/Lost Hills", "Marina Del Rey", "Men's Central Jail", "Norwalk", "Palmdale", "Pico Rivera", "Unknown", "San Dimas", "Santa Clarita", "Temple", "Transit Services Bureau", "Twin Towers Correctional Facility", "Walnut", "West Hollywood")
+
+# Prep canonical keywords for fuzzy matching
+canonical_keywords <- tolower(correct_stations) %>% 
+  str_replace_all("[^a-z0-9 ]", " ") %>% 
+  str_squish()
+
+# Fuzzy matching function
+match_station_fuzzy <- function(station_text, canonical = canonical_keywords, raw_names = correct_stations) {
+  
+  if(is.na(station_text) || str_trim(station_text) == "") {
+    return(NA_character_)
+  }
+  
+  clean <- station_text %>%
+    tolower() %>%
+    str_replace_all("[^a-z0-9 ]", " ") %>% 
+    str_squish()
+  
+  dists <- stringdist(clean, canonical, method = "jw")
+  min_dist <- min(dists)
+  
+  # Require minimum similarity (tunable threshold)
+  if(min_dist > 0.4) {
+    return(NA_character_)
+  }
+  
+  raw_names[which.min(dists)]
+}
+
+
+  df <- df %>%
+  mutate(
+    Station_std = map_chr(
+      `Station`,
+      ~ match_station_fuzzy(.x)
+    )
+  )
+df
+```
+
+One problem faced with the data on gang affiliation is that deputies with gang affiliations often are connected to more than one gang. One reason for this is due to the covert nature of this attribute. The deputy may truly be associated with multiple gangs; however, news articles and other sources may misreport gang affiliation and only one association may be correct. 
+
+However, there are deputies who are active in multiple gangs. Multiple gang affiliations are likely for deputies who have multiple assignments throughout their career. Deputies who joined the gang called 2000/3000 Boys often are affiliated with another gang. This is because the 2000/3000 Boys is associated with Men's Central Jail (though deputies in other correctional facilities may be involved). Deputies often start in the jails and then move to other stations to go on patrol. When they move to these patrol stations, they join the gangs existing at those stations.
+
+Since deputies can be in multiple gangs, the data will maintain a list of gangs for each deputy. The following code will make sure each gang included in the list is one of the canonical gangs and reformat as necessary. If a deputy is not part of any gang, the code below will fill in the blank with "no affiliation". 
+
+```{r - Gang Names Fuzzy Matching}
+
+# Canonical list
+correct_gangs <- c(
+  "2000/3000 Boys", "Executioners", "Gladiators", "Spartans",
+  "Banditos", "Posse", "Jump Out Boys", "Vikings", "Wayside Whites", "Regulators"
+)
+
+# Pre-clean canonical list ONCE
+canonical_clean <- correct_gangs %>%
+  tolower() %>%
+  str_replace_all("[^a-z0-9 ]", " ") %>%
+  str_squish()
+
+# 1 Compute a standardized gang string per Deputy
+deputy_gang_std <- df %>%
+  group_by(Officer_final) %>%
+  summarise(
+    Gang_std_str = {
+
+      # Collect all Gang entries for this Deputy
+      gangs_input <- Gang %>% na.omit() %>% str_trim()
+      
+      if (length(gangs_input) == 0 || all(gangs_input == "")) {
+        "No affiliation"
+      } else {
+        # Split each entry by ; , /, clean, and flatten
+        gangs_input <- gangs_input %>%
+          str_split(";|,|/") %>%
+          unlist() %>%
+          str_trim() %>%
+          tolower() %>%
+          str_replace_all("[^a-z0-9 ]", " ") %>%
+          str_squish()
+        
+        # Match to canonical
+        matches <- map_chr(gangs_input, function(g) {
+          idx <- which(str_detect(canonical_clean, fixed(g)))
+          if (length(idx) > 0) correct_gangs[idx[1]] else NA_character_
+        })
+        
+        valid <- unique(na.omit(matches))
+        if (length(valid) == 0) "No affiliation" else paste(valid, collapse = ", ")
+      }
+    },
+    .groups = "drop"
+  )
+
+# 2 Join back to the original df
+df <- df %>%
+  left_join(deputy_gang_std, by = "Officer_final")
+
+```
+The following code produces a list of unique combinations of officers and gang affiliation lists. The total number of unique combinations is equal to the total number of deputies in the data set, so the data was cleaned correctly. 
+
+```{r}
+# for standardized gang column
+unique_pairs_std <- df %>%
+  distinct(Officer_final, Gang_std_str)
+
+# View results
+unique_pairs_std
+```
+
+The following code moves the cleaned columns with the original columns for both Station and Gang in order to compare easily and check if the data was cleaned appropriately. 
+
+```{r}
+df <- df %>%
+  relocate(Station_std, .after = Station) %>%
+  relocate(Gang_std_str, .after = Gang)
+df
+```
+
+## Final Cleaning 
+
+The columns with the case numbers and the year the incident occurred are only need to be cleaned by removing excess white space. The original, uncleaned columns are deleted from the data frame and column labels are renamed as finishing touches to the data frame. 
+
+```{r}
+df <- df[-1,]
+df <- df %>%
+  mutate(case_id = str_squish(case_id)) %>%
+  mutate(Year = str_squish(Year)) %>% 
+  rename(CaseNumber = case_id, Deputy = Officer_final, GangAffiliation = Gang_std_str, StationAssigned = Station_std)  %>%
+  select(-Gang, -Station)
+
+#I couldn't get the data to clean appropriately for this case, so I am manually fixing it 
+df$Deputy[df$Deputy == "Juanreplace P. Rodriguez"] <- "Juan P. Rodriguez"
+df$GangAffiliation[df$Deputy == "Juan C. Rodriguez"] <- "No affiliation"
+```
+
+```{r}
+df
+```
+
+## Export into Excel
+
+The resulting data frame is exported as an excel file to be used in the data analysis stage.
+
+```{r}
+library(writexl)
+write_xlsx(df, "Mastersheet_cleaned.xlsx")
+```
+
+# Bibliography
+
+“ACLU Releases Expert’s Report on Nightmarish Conditions at Men’s Central Jail in Los Angeles.” American Civil Liberties Union, April 13, 2009. https://www.aclu.org/press-releases/aclu-releases-experts-report-nightmarish-conditions-mens-central-jail-los-angeles. 
+
+Breiger 2005 pp. 89-93 Introduction to special issue of the journal Social Networks on Ethics" 
+
+Castle, Cerise. “A Tradition of Violence: The History of Deputy Gangs in the Los Angeles County Sheriff’s Department.” Knock LA, July 17, 2023. https://knock-la.com/tradition-of-violence-lasd-gang-history/. 
+
+NBC Los Angeles. “Ex-LA County Sheriff Alex Villanueva Testifies on Deputy Gangs.” NBC Los Angeles, January 13, 2024. https://www.nbclosangeles.com/news/local/ex-la-county-sheriff-alex-villanueva-testifies-on-deputy-gangs/3311396/. 
+
+Radil, Steven M., Colin Flint, and George E. Tita. 2010. “Spatializing Social Networks: Using Social Network Analysis to Investigate Geographies of Gang Rivalry, Territoriality, and Violence in Los Angeles.” Annals of the Association of American Geographers 100 (2): 307–26. doi:10.1080/00045600903550428.'
+
+Rawlings et al. 2023 Chapter 4 ""Collecting Network Data"" from Network Analysis: Integrating Social Network Theory, Method, and Application with R. New York: Cambridge University Press
+
+Valley, Richard W. La, Abe Usher, and Alexander M. Halman. “Detecting Dark Networks Using Geo-Temporal and Pattern-Based Network Analysis Techniques.” Chapter. In Illuminating Dark Networks: The Study of Clandestine Groups and Organizations, edited by Luke M. Gerdes, 71–83. Structural Analysis in the Social Sciences. Cambridge: Cambridge University Press, 2015.
+
+# AI Disclosure
+
+I heavily relied on ChatGPT to help me write the code for the data cleaning, both the initial code and in the debugging process. 
