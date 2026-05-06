@@ -3,16 +3,16 @@
 ## Assignments
 This folder contains the homework assignments for this coursework. Each assignment is a jupyter notebook tutorial on a different stage of the machine learning pipeline. 
 
-M1_EDA.ipynb: Exploratory Data Analysis
+M1_EDA.ipynb: Exploratory Data Analysis:
   This assignment covers data cleaning, choosing variables, removing outliers, one-hot encoding, and text data processing. 
 
-M2_tree_music popularity.ipynb
+M2_tree_music popularity.ipynb:
   This assignment is about tree-based models, including both decision tree and random forest models. 
 
-M3_hate_speech_prediction(regression).ipynb
+M3_hate_speech_prediction(regression).ipynb:
   This assignment is about linear models, specifically linear regression for a continuous outcome variable. 
 
-M4_Unsupervised_AI_innovation.ipynb
+M4_Unsupervised_AI_innovation.ipynb:
   This assignment explores unsupervised learning using k-means clustering, sentiment analysis, and topic modeling. 
 
 ## Final Project
